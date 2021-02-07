@@ -225,7 +225,7 @@ class Rocket {
 
         this.minX = x;
         this.maxX = x + 600;
-        this.movementSpeed = 0.02;
+        this.movementSpeed = 0.2;
     }
 
     update() {
