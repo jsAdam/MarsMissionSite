@@ -2,6 +2,10 @@
 <html>
     <head>
         <meta charset="utf-8">
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Aldrich&display=swap" rel="stylesheet">
         <style>
             html, body {
                 margin: 0; 
@@ -9,6 +13,7 @@
                 height: 100%;
                 overflow: hidden; 
                 background: blue;
+                font-family: 'Aldrich', sans-serif;
             }
             
             #container {
@@ -22,6 +27,16 @@
                 width: 100% !important;
                 height: 100% !important;
                 display: block;
+            }
+ 
+            #heading {
+                position: absolute;
+                top: 10%;
+                left: 50%;
+                z-index: 1000;
+                color: #39ff14;
+                transform: translate(-50%, -50%);
+                font-family: 'Orbitron', sans-serif;
             }
             
             #labels {
@@ -42,11 +57,14 @@
                 width: 250px;
                 color: #39ff14;
             }
+ 
             #labels>div p {
                 background: rgb(40, 40, 40);
                 padding: 20px;
                 text-align: left;
+                font-size: 14px;
             }
+ 
             #labels>div * {
                 margin: 0;
             }
@@ -86,11 +104,22 @@
                 opacity: 0.3;
                 transition: 1s opacity ease-in-out;
             }
+ 
+            #scaleSlider {
+                position: absolute;
+                left: 50px;
+                top: 50px;
+            }
         </style>
     </head>
     <body>
         <div id="container">
             <canvas id="myCanvas"></canvas>
+            <h2 id="heading">M.A.R.S. Research Programme</h2>
+            <div id="debug-fields">
+                <p id="debug1"></p>
+                <p id="debug2"></p>
+            </div>
             <div id="labels">
                 <!-- <div>
                     <p>Hello how are you</p>
@@ -119,3 +148,4 @@
         <script type="module" src="script.js"></script>
     </body>
 </html>
+

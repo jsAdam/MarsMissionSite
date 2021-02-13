@@ -4,50 +4,68 @@ import { RenderPass } from "./jsm/postprocessing/RenderPass.js";
 import { OutlinePass } from "./jsm/postprocessing/OutlinePass.js";
 import { UnrealBloomPass } from "./jsm/postprocessing/UnrealBloomPass.js";
 import { FBXLoader } from './jsm/loaders/FBXLoader.js'
-
+ 
 let canvas = document.querySelector("#myCanvas");
-
+ 
 let renderer = new THREE.WebGLRenderer({canvas});
-renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
-
+renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+ 
 let scene = new THREE.Scene();
-
+ 
 let WIDTH = canvas.offsetWidth;
 let HEIGHT = canvas.offsetHeight;
 let OBJECTS = [];
 let tetrahedrons = [];
 const labelContainerElem = document.querySelector("#labels");
-
+ 
 //let camera = new THREE.PerspectiveCamera(65, canvas.clientWidth/canvas.clientHeight, 0.1, 1000);
 let camera = new THREE.OrthographicCamera( WIDTH / - 2, WIDTH / 2, HEIGHT / 2, HEIGHT / - 2, 1, 1000 );
 camera.position.set(0.0, 0.0, 500);
-
+ 
 var renderScene = new RenderPass( scene, camera );
-
-var bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 ); //1.0, 9, 0.5, 512);
+ 
+var bloomPass = new UnrealBloomPass( new THREE.Vector2( WIDTH, HEIGHT ), 1.5, 0.4, 0.85 ); //1.0, 9, 0.5, 512);
 bloomPass.renderToScreen = true;
 bloomPass.threshold = 0.7;
 bloomPass.strength = 1;
 bloomPass.radius = 0.4;
-
+ 
 let composer = new EffectComposer( renderer );
-let outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
-composer.setSize( window.innerWidth, window.innerHeight );
+// let params = {
+//     edgeStrength: 1.0,
+//     edgeGlow: 4,
+//     egdeThickness: 1.0
+// };
+ 
+let outlinePass = new OutlinePass(new THREE.Vector2(WIDTH, HEIGHT), scene, camera);
+// outlinePass.edgeStrength = params.edgeStrength;
+// outlinePass.edgeGlow = params.edgeGlow;
+// outlinePass.egdeThickness = params.egdeThickness;
+// outlinePass.visibleEdgeColor.set(0xffffff);
+// outlinePass.hiddenEdgeColor.set(0xffffff);
+ 
+composer.setSize( WIDTH, HEIGHT );
 composer.addPass( renderScene );
 composer.addPass( bloomPass );
 composer.addPass( outlinePass );
-
+ 
 let shaderMaterial = new THREE.ShaderMaterial({
-		vertexShader:   document.querySelector('#vertexshader').textContent,
-		fragmentShader: document.querySelector('#fragmentshader').textContent
-	});
+        vertexShader:   document.querySelector('#vertexshader').textContent,
+        fragmentShader: document.querySelector('#fragmentshader').textContent
+    });
 let sphere = new THREE.Mesh(
-	   new THREE.SphereGeometry(1, 16, 16),
-	   shaderMaterial);
-
-	// add the sphere and camera to the scene
+       new THREE.SphereGeometry(1, 16, 16),
+       shaderMaterial);
+ 
+let sceneScale = new THREE.Object3D();
+sceneScale.visible = true;
+scene.add(sceneScale);
+ 
+    // add the sphere and camera to the scene
 //scene.add(sphere);
-
+ 
+let outlinePassObjects = [];
+ 
 class Planet {
     constructor(x, y, z, r, textureSrc) {
         let texture = new THREE.TextureLoader().load(textureSrc);
@@ -57,8 +75,9 @@ class Planet {
         this.geometry = new THREE.SphereGeometry(r, 64, 64);
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         this.mesh.position.set(x, y, z);
-        scene.add(this.mesh);
+        sceneScale.add(this.mesh);
         //outlinePass.selectedObjects = [this.mesh];
+        outlinePassObjects.push(this.mesh);
         OBJECTS.push(this.mesh);
         this.rotateSpeed = 0.03;
     }
@@ -71,7 +90,7 @@ class Planet {
         this.mesh.rotation.y -= this.rotateSpeed;
     }
 }
-
+ 
 class Light {
     constructor(x, y, r, ctx) {
         this.x = x;
@@ -81,10 +100,10 @@ class Light {
         this.on = false;
         this.flickerTime = 1000 + Math.round(Math.random() * 5000);
         this.flickerTimer = millis();
-
+ 
         this.onTimer = millis();
     }
-
+ 
     show() {
         if(millis() > this.flickerTimer + this.flickerTime) {
             this.flickerTimer = millis();
@@ -92,30 +111,30 @@ class Light {
             this.on = true;
             this.onTimer = millis();
         }
-
+ 
         if(this.on) {
             this.ctx.fillStyle = "white";
             this.ctx.beginPath();
             this.ctx.arc(this.x, this.y, this.r, 0, 2 * Math.PI);
             this.ctx.fill();
-
+ 
             if(millis() > this.onTimer + 500) {
                 this.on = false;
             }
         }
     }
 }
-
+ 
 class ISSCanvas {
     constructor(x, y, z) {
         this.ctx = document.createElement("canvas").getContext("2d");
         this.ctx.canvas.width = 896;
         this.ctx.canvas.height = 357;
-
+ 
         let self = this;
         let background = new Image();
         this.image = background;
-
+ 
         this.texture = new THREE.CanvasTexture(this.ctx.canvas);
         background.onload = function() {
     
@@ -129,26 +148,26 @@ class ISSCanvas {
     
             let mesh = new THREE.Mesh(geometry, material);
             mesh.position.set(x, y, z);
-            scene.add(mesh);
+            sceneScale.add(mesh);
             self.setMesh(mesh);
         }
         background.src = "./assets/issV2.jpg";
-
+ 
         this.lights = [
             new Light(450, 175, 12, this.ctx),
             new Light(250, 100, 8, this.ctx),
             new Light(800, 200, 9, this.ctx)
         ];
     }
-
+ 
     setMesh(mesh) {
         this.mesh = mesh;
     }
-
+ 
     setTexture(texture) {
         this.texture = texture;
     }
-
+ 
     showLights() {
         this.ctx.drawImage(this.image, 0, 0);
         for(let light of this.lights) {
@@ -157,36 +176,53 @@ class ISSCanvas {
         this.texture.needsUpdate = true;
     }
 }
-
+ 
 class ISS {
-    constructor(x, y, z) {
+    constructor(parent, rotationAxis) {
         let texture = new THREE.TextureLoader().load("./assets/iss.png");
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
         //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
+ 
         let material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         let geometry = new THREE.PlaneGeometry(150, 60, 0);
 
-        mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(x, y, z);
-        scene.add(mesh);
+        this.orbitAngle = 0;
+        this.orbitSpeed = 0.013;
+        this.orbitDist = 300;
+
+        this.parent = parent;
+ 
+        this.mesh = new THREE.Mesh(geometry, material);
+        sceneScale.add(this.mesh);
+    }
+
+    orbit() {
+        let r = this.orbitDist;
+        let horz = 0;
+        let x = r * Math.sin(this.orbitAngle) * Math.cos(horz);
+        let y = r * Math.sin(this.orbitAngle) * Math.sin(horz);
+        let z = r * Math.cos(this.orbitAngle);
+ 
+        this.orbitAngle += this.orbitSpeed;
+ 
+        this.mesh.position.set(this.parent.position.x + x, this.parent.position.y + y, this.parent.position.z + z);
     }
 }
-
+ 
 class Rocket {
     constructor(x, y, z) {
         let texture = new THREE.TextureLoader().load("./assets/rocket.png");
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
         //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
+ 
         let material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, emissive: 0x000000, emissiveIntensity: 0 });
         let geometry = new THREE.PlaneGeometry(17, 100, 0);
-
+ 
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.set(x, y, z);
         this.mesh.rotation.z = -Math.PI/2;
-        scene.add(this.mesh);
-
+        sceneScale.add(this.mesh);
+ 
         let self = this;
         let loader = new FBXLoader();
         loader.load("./assets/exhaust.fbx", function(object) {
@@ -200,16 +236,16 @@ class Rocket {
             self.exhaust = exhaustMesh;
             self.mesh.add(exhaustMesh);
         })
-
+ 
         let flameGeometry = new THREE.BoxGeometry(60, 10, 5);
         let flameMaterial = new THREE.MeshPhongMaterial({ color: 0xC2261F, reflectivity: 1.0, emissive: 0xC2261F });
         let flameMesh = new THREE.Mesh(flameGeometry, flameMaterial);
         flameMesh.position.set(x - 50, y, z);
-
+ 
         this.accelerate = true;
         this.exhaustAccTime = random(900, 1500);
         this.exhaustAccTimer = millis();
-
+ 
         this.burn = false;
         this.exhaustBurnTime = random(2000, 4000);
         this.exhaustBurnTimer = millis();
@@ -217,23 +253,23 @@ class Rocket {
         this.deccelerate = false;
         this.exhaustDeccTime = random(900, 1500);
         this.exhaustDeccTimer = millis();
-
+ 
         this.drift = false;
         this.exhaustDriftTime = random(2100, 4500);
         this.exhaustDriftTimer = millis();
         //scene.add(flameMesh);
-
+ 
         this.minX = x;
         this.maxX = x + 600;
         this.movementSpeed = 0.2;
     }
-
+ 
     update() {
         if(this.exhaust) {
             this.animate();
-
+ 
             //let x = this.mesh.position.x + this.movementSpeed;
-
+ 
             //this.mesh.position.set(x, this.mesh.position.y, this.mesh.position.z);
             this.mesh.position.x += this.movementSpeed;
             if(this.mesh.position.x > this.maxX || this.mesh.position.x < this.minX) {
@@ -242,64 +278,64 @@ class Rocket {
             }
         }
     }
-
+ 
     animate() {
         if(this.accelerate) {
             let diff = (this.exhaustAccTimer + this.exhaustAccTime) - millis();
             let opacity = map(diff, 0, this.exhaustAccTime, 1, 0);
-
+ 
             this.exhaust.children[0].material.opacity = opacity;
-
+ 
             if(millis() > this.exhaustAccTimer + this.exhaustAccTime) {
                 this.accelerate = false;
                 this.burn = true;
-
+ 
                 this.exhaustBurnTime = random(2000, 4000);
                 this.exhaustBurnTimer = millis();
             }
         }
-
+ 
         if(this.burn) {
             this.exhaust.children[0].material.opacity = 1;
-
+ 
             if(millis() > this.exhaustBurnTimer + this.exhaustBurnTime) {
                 this.burn = false;
                 this.deccelerate = true;
-
+ 
                 this.exhaustDeccTime = random(2100, 4500);
                 this.exhaustDeccTimer = millis();
             }
         }
-
+ 
         if(this.deccelerate) {
             let diff = (this.exhaustDeccTimer + this.exhaustDeccTime) - millis();
             let opacity = map(diff, 0, this.exhaustDeccTime, 0, 1);
-
+ 
             this.exhaust.children[0].material.opacity = opacity;
-
+ 
             if(millis() > this.exhaustDeccTimer + this.exhaustDeccTime) {
                 this.deccelerate = false;
                 this.drift = true;
-
+ 
                 this.exhaustDriftTime = random(700, 1500);
                 this.exhaustDriftTimer = millis();
             }
         }
-
+ 
         if(this.drift) {
             this.exhaust.children[0].material.opacity = 0;
-
+ 
             if(millis() > this.exhaustDriftTimer + this.exhaustDriftTime) {
                 this.drift = false;
                 this.accelerate = true;
-
+ 
                 this.exhaustAccTime = random(900, 1500);
                 this.exhaustAccTimer = millis();
             }
         }
     }
 }
-
+ 
 class Moon2 {
     constructor(parent, rotationAxis) {
         let texture = new THREE.TextureLoader().load("./assets/moon.jpg");
@@ -309,30 +345,30 @@ class Moon2 {
         scene.add(this.mesh);
         OBJECTS.push(this.mesh);
         console.log(parent.position.x);
-
+ 
         this.parent = parent;
-
+ 
         this.rotationAxis = rotationAxis;
-
+ 
         let orbitDist = 275;
         let startX = parent.position.x + -rotationAxis.x * orbitDist;
         let startY = parent.position.y + rotationAxis.y * orbitDist;
         let startZ = parent.position.z + rotationAxis.z * orbitDist;
-
+ 
         this.mesh.position.set(startX, startY, startZ);
-
+ 
         //this.parent = parent;
         
         this.rotateSpeed = 0.03;
         this.orbitAngle = 0;
         this.orbitSpeed = 0.01;
         this.orbitDist = 400;
-
+ 
         this.orbitY = 200;
         this.lastOrbitPI = 0;
         this.orbitYDir = -1;
     }
-
+ 
     orbit2() {
         this.mesh.position.sub(this.parent.position); // remove the offset
         this.mesh.position.applyAxisAngle(this.rotationAxis, this.orbitSpeed); // rotate the POSITION
@@ -340,115 +376,139 @@ class Moon2 {
     
         this.mesh.rotateOnAxis(this.rotationAxis, this.orbitSpeed); // rotate the OBJECT
     }
-
+ 
     orbit() {
         this.orbitAngle += this.orbitSpeed;
         let p = new THREE.Vector3(this.orbitDist * Math.cos(this.orbitAngle), 0, this.orbitDist * Math.sin(this.orbitAngle));
-
+ 
         if(this.orbitAngle - this.lastOrbitPI > Math.PI) {
             this.orbitYDir = -this.orbitYDir;
             this.lastOrbitPI = this.orbitAngle;
         }
         let y = map(this.orbitAngle, this.lastOrbitPI, this.lastOrbitPI + Math.PI, -this.orbitYDir * this.orbitY, this.orbitYDir * this.orbitY);
-
+ 
         this.mesh.position.set(this.parent.mesh.position.x + p.x, this.parent.mesh.position.y + p.y + y, this.parent.mesh.position.z + p.z);
     }
 }
-
+ 
 class Moon {
     constructor(parent, rotationAxis) {
         let texture = new THREE.TextureLoader().load("./assets/moon.jpg");
         this.material = new THREE.MeshBasicMaterial({map: texture});
         this.geometry = new THREE.SphereGeometry(40, 64, 64);
         this.mesh = new THREE.Mesh(this.geometry, this.material);
-        scene.add(this.mesh);
+        sceneScale.add(this.mesh);
         OBJECTS.push(this.mesh);
         console.log(parent.position.x);
-
+ 
         this.parent = parent;
-
+ 
         this.rotationAxis = rotationAxis;
-        this.r = 64;
-
-        let orbitDist = 275;
+        this.r = 40;
+ 
+        let orbitDist = 350;
         let startX = parent.position.x + -rotationAxis.x * orbitDist;
         let startY = parent.position.y + rotationAxis.y * orbitDist;
         let startZ = parent.position.z + rotationAxis.z * orbitDist;
-
+ 
         this.rotatePosition = new THREE.Vector3(startX, startY, startZ);
         this.mesh.position.set(startX, startY, startZ);
-
+        this.orbitDist = orbitDist;
+ 
         //this.parent = parent;
         
-        this.rotateSpeed = 0.03;
+        this.rotateSpeed = 0.01;
         this.orbitAngle = 0;
-        this.orbitSpeed = 0.01;
-        this.orbitDist = 400;
-
+        this.orbitSpeed = 0.005;
+        //this.orbitDist = 400;
+ 
         this.orbitY = 200;
         this.lastOrbitPI = 0;
         this.orbitYDir = -1;
+ 
+        this.xDir = false;
+        this.rotateAngle = 0;
     }
-
+ 
     orbit2() {
         //this.rotatePosition.sub(this.parent.position);
         //this.rotatePosition.applyAxisAngle(this.rotationAxis, this.orbitSpeed);
         //this.rotatePosition.add(this.parent.position);
         //this.mesh.position.set(this.rotatePosition.x, this.rotatePosition.y, this.rotatePosition.z);
-        let r = 350;
+        let r = this.orbitDist;
         let horz = Math.PI/4;
         let x = r * Math.sin(this.orbitAngle) * Math.cos(horz);
         let y = r * Math.sin(this.orbitAngle) * Math.sin(horz);
         let z = r * Math.cos(this.orbitAngle);
-
+ 
         this.orbitAngle += this.orbitSpeed;
-
+ 
         this.mesh.position.set(this.parent.position.x + x, this.parent.position.y + y, this.parent.position.z + z);
-        //this.mesh.rotateOnAxis(this.rotationAxis, 0.01);
+        this.rotateAngle += 0.1;
+        
+        //this.mesh.rotation.y = Math.cos(this.rotateAngle);
+        //this.mesh.rotation.x = Math.sin(this.rotateAngle);
+    
+        // if(this.xDir) {
+        //     this.mesh.rotation.x += 0.1;
+        //     if(this.mesh.rotation.x > Math.PI) {
+        //         this.xDir = false;
+        //     }
+        // } else {
+        //     this.mesh.rotation.x -= 0.1;
+        //     if(this.mesh.rotation.x < 0) {
+        //         this.xDir = true;
+        //     }
+        // }
+ 
+        //this.mesh.rotateOnWorldAxis(this.rotationAxis, 0.05);
     }
-
+ 
     orbit() {
         this.orbitAngle += this.orbitSpeed;
         let p = new THREE.Vector3(this.orbitDist * Math.cos(this.orbitAngle), 0, this.orbitDist * Math.sin(this.orbitAngle));
-
+ 
         if(this.orbitAngle - this.lastOrbitPI > Math.PI) {
             this.orbitYDir = -this.orbitYDir;
             this.lastOrbitPI = this.orbitAngle;
         }
         let y = map(this.orbitAngle, this.lastOrbitPI, this.lastOrbitPI + Math.PI, -this.orbitYDir * this.orbitY, this.orbitYDir * this.orbitY);
-
+ 
         this.mesh.position.set(this.parent.mesh.position.x + p.x, this.parent.mesh.position.y + p.y + y, this.parent.mesh.position.z + p.z);
     }
 }
-
+ 
 const tempV = new THREE.Vector3();
-
+ 
 class Popup {
-    constructor(parent, text, latitude, longitude) {
+    constructor(parent, text, followPopup, latitude, longitude) {
         let geometry = new THREE.BoxGeometry(60, 60, 5);
         //let material = new THREE.MeshBasicMaterial({color: 0xFFFFFF, reflectivity: 1.0, emissive: 0xFFFFFF});
         let material = new THREE.MeshBasicMaterial({color: 0x0000FF});
         this.mesh = new THREE.Mesh(geometry, material);
-
+ 
         this.parent = parent.mesh;
-        console.log(parent.mesh);
+
         let x = 0;
         let y = 0;
         let z = 0;
-
+ 
         if(latitude !== null && longitude !== null) {
             let rho = parent.r;
             let phi   = (90-latitude)*(Math.PI/180)
             let theta = (longitude+180)*(Math.PI/180)
-
+ 
             x = -((rho) * Math.sin(phi)*Math.cos(theta));
             z = ((rho) * Math.sin(phi)*Math.sin(theta));
             y = ((rho) * Math.cos(phi));
         }
-
-        if(parent.mesh.geometry.type == "PlaneGeometry") {
-            scene.add(this.mesh);
-            this.mesh.position.set(parent.mesh.position.x, parent.mesh.position.y, parent.mesh.position.z);
+ 
+        if(followPopup) {
+            if(parent instanceof Planet || parent instanceof Moon) {
+                this.mesh.position.z = parent.r;
+            }
+            parent.mesh.add(this.mesh);
+            //this.mesh.position.set(parent.mesh.position.x, parent.mesh.position.y, parent.mesh.position.z);
             OBJECTS.push(this.mesh);
             this.planeGeometryPopup = true;
         } else {
@@ -458,7 +518,19 @@ class Popup {
             this.mesh.lookAt(parent.mesh.position);
         }
         this.mesh.visible = false;
-
+ 
+        let iconTexture = new THREE.TextureLoader().load("./assets/heatmap.png");
+        let iconGeometry = new THREE.PlaneGeometry(40, 40, 40);
+        let iconMaterial = new THREE.MeshBasicMaterial({ map: iconTexture, transparent: true });
+        let iconMesh = new THREE.Mesh(iconGeometry, iconMaterial);
+        parent.mesh.add(iconMesh);
+        iconMesh.position.set(x, y, z);
+        var v = new THREE.Vector3();
+        var target = new THREE.Vector3();
+        iconMesh.getWorldPosition(target);
+        v.subVectors(target, parent.mesh.position).add(target);
+        iconMesh.lookAt(v);
+ 
         let elem = document.createElement("div");
         let p = document.createElement("p");
         p.innerHTML = text;
@@ -470,12 +542,12 @@ class Popup {
         
         labelContainerElem.appendChild(elem);
         this.label = elem;
-
+ 
         this.selected = false;
     }
-
+ 
     update() {
-        this.mesh.position.set(this.parent.position.x, this.mesh.position.y, this.mesh.position.z);
+        //this.mesh.position.set(this.parent.position.x, this.mesh.position.y, this.mesh.position.z);
     }
     
     showLabel() {
@@ -493,14 +565,14 @@ class Popup {
         
         this.label.style.transform = `translate(-50%, -50%) translate(${x}px,${y - this.label.offsetHeight/2}px)`;
     }
-
+ 
     hideLabel() {
         if(this.label.style.display != "none") {
             this.label.style.display = "none";
         }
     }
 }
-
+ 
 function createBackgroundPlane() {
     let texture = new THREE.CanvasTexture(getCanvasTexture());
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -510,59 +582,58 @@ function createBackgroundPlane() {
     mesh.position.set(0, 0, -3);
     scene.add(mesh);
 }
-
+ 
 class StarBackground {
     constructor() {
         this.ctx = document.createElement("canvas").getContext("2d");
         this.ctx.canvas.width = 1920;
         this.ctx.canvas.height = 1080;
-
+ 
         let background = new Image();
         background.src = "./assets/stars - Copy.jpg";
         this.image = background;
-
+ 
         this.ctx.drawImage(background, 0, 0);
-
+ 
         this.texture = new THREE.CanvasTexture(this.ctx.canvas);
         //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
+ 
         let material = new THREE.MeshBasicMaterial({ map: this.texture });
         let geometry = new THREE.PlaneGeometry(1920, 1080, 0);
-
+ 
         let mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(0, 0, -500);
         scene.add(mesh);
-
+ 
         this.starTime = millis();
         this.starTimer = Math.round(Math.random() * 1000);
         this.stars = [];
     }
-
+ 
     moveStars() {
         if(millis() > this.starTime + this.starTimer) {
-            console.log("WORKING");
             this.starTime = millis();
             this.starTimer = Math.round(Math.random() * 1000);
             
             let randX = Math.random() * this.ctx.canvas.width;
             let randY = Math.random() * this.ctx.canvas.height;
-
+ 
             this.stars.push(new Star(randX, randY, this.ctx));
         }
         this.ctx.drawImage(this.image, 0, 0);
         for(let i = this.stars.length - 1; i >= 0; i--) {
             this.stars[i].update();
             this.stars[i].show();
-
+ 
             if(this.stars[i].lifespan < 0) {
                 this.stars.splice(i, 1);
             }
         }
-
+ 
         this.texture.needsUpdate = true;
     }
 }
-
+ 
 class Star {
     constructor(x, y, ctx) {
         this.x = x;
@@ -573,12 +644,12 @@ class Star {
         this.lifespan = 255;
         this.ctx = ctx;
     }
-
+ 
     update() {
         this.x += this.vx;
         this.y += this.vy;
     }
-
+ 
     show() {
         this.ctx.fillStyle = `rgba(255, 255, 255, ${this.lifespan/255})`;
         this.ctx.beginPath();
@@ -587,7 +658,7 @@ class Star {
         this.lifespan -= 2;
     }
 }
-
+ 
 class Tetrahedron {
     constructor(x, y, z, a) {
         // Mesh Creation
@@ -733,7 +804,7 @@ class Tetrahedron {
         this.bottomMesh.rotation.y += this.rotationSpeed;
     }
 }
-
+ 
 class Orb {
     constructor(x, y, z, center, size) {
         this.size = size;
@@ -771,26 +842,32 @@ class Orb {
         this.mesh.position.z = this.center.z + (Math.sin(this.radians) * this.distanceToCenter);
     }
 }
-
+ 
 let CLOCK = new THREE.Clock();
 CLOCK.start();
-
+ 
+let min = 921600;
+let max = 2073600;
+let current = WIDTH * HEIGHT;
+ 
 let earth = new Planet(-600, 0, -3, 200, "assets/earth_clouds.png");
 let mars = new Planet(600, 0, 0, 106, "assets/mars.jpg");
-let moon = new Moon(earth.mesh, new THREE.Vector3(-1, 1, 0));
-let iss = new ISSCanvas(-300, 0, 0);
-let rocket = new Rocket(0, 0, 0);
-
+let moon = new Moon(earth.mesh, new THREE.Vector3(1, 1, 1));
+//let iss = new ISSCanvas(earth.mesh.position.x + 300, 0, 0);
+let iss = new ISS(earth.mesh, new THREE.Vector3(1, 0, 0));
+let rocket = new Rocket(earth.mesh.position.x + 600, 0, 0);
+//outlinePass.selectedObjects = outlinePassObjects;
+ 
 let popups = [];
 for(let data of POPUP_DATA) {
-    popups.push(new Popup(earth, data.popupHTML, data.lat, data.long));
+    popups.push(new Popup(earth, data.popupHTML, false, data.lat, data.long));
 }
 setTimeout(() => {
-    popups.push(new Popup(iss, "Examining changes in cosmonaut motivation and links to coping and self-regulation during 6 month missions aboard the ISS"));
+    popups.push(new Popup(iss, "Examining changes in cosmonaut motivation and links to coping and self-regulation during 6 month missions aboard the ISS", true));
 }, 1000);
-popups.push(new Popup(rocket, "Using advances in artificial intelligence to power robotic psychological companions on a mission to Mars"));
-popups.push(new Popup(mars, "Developing psychological research roadmaps to support and sustain human life during deep space exploration missions to Mars", 0, -90));
-popups.push(new Popup(moon, "Applying agent based models to historic polar exploration material to support future Moon-based civilisations", 0, -90));
+popups.push(new Popup(rocket, "Using advances in artificial intelligence to power robotic psychological companions on a mission to Mars", true));
+popups.push(new Popup(mars, "Developing psychological research roadmaps to support and sustain human life during deep space exploration missions to Mars", true));
+popups.push(new Popup(moon, "Applying agent based models to historic polar exploration material to support future Moon-based civilisations", true));
 // let popupGR = new Popup(71.7, -42.6, earth, "Relations between linguistic markers of stress and health on expedition. Using a digital tool to monitor and optimise stress and health during a lunar analogue mission");
 // let popupUK = new Popup(55.4, -3.4, earth, "Monitoring and supporting resilient performance in extreme and high risk populations");
 // let popup1 = new Popup(-8.7, -55.5, earth, "This is South America");
@@ -798,27 +875,27 @@ popups.push(new Popup(moon, "Applying agent based models to historic polar explo
 // let popup3 = new Popup(-8.7, -55.5, earth, "This is South America");
 // let popup4 = new Popup(-8.7, -55.5, earth, "This is South America");
 // let popup5 = new Popup(-8.7, -55.5, earth, "This is South America");
-
+ 
 // popups.push(popupGR);
 // popups.push(popupUK);
-
+ 
 let background = new StarBackground();
 //createBackgroundPlane();
 //createGround();
-
+ 
 let light = new THREE.SpotLight(0xffffff, 1);
 light.position.set(-250, 0, 600);
 scene.add(light);
-
+ 
 function millis() {
     return Math.floor(CLOCK.getElapsedTime() * 1000);
 }
-
+ 
 let draw = function() {
     resizeRendererToDisplaySize();
-
+ 
     rocket.update();
-    iss.showLights();
+    iss.orbit();
     moon.orbit2();
     //rotateAboutPoint(moon.mesh, earth.mesh.position, new THREE.Vector3(-1, 1, 0), 0.01, true);
     //moon.orbit();
@@ -841,13 +918,13 @@ let draw = function() {
     requestAnimationFrame(draw);
 }
 draw();
-
+ 
 let mouseX = 0;
-
+ 
 document.onmousemove = function(e) {
     onDocumentMouseMove(e);
 }
-
+ 
 document.addEventListener("mousedown", function(event){
     //mouseDownFunction(e); 
     // Only override onmousemove event if intersecting earth mesh on mouse down
@@ -861,29 +938,35 @@ document.addEventListener("mousedown", function(event){
     
     raycaster.setFromCamera(mouse3D, camera);
     let intersects = raycaster.intersectObjects(OBJECTS);
-
+ 
     let intersectingEarthMesh = false;
     for(let intersect of intersects) {
         if(intersect.object == earth.mesh) {
             intersectingEarthMesh = true;
         }
     }
-
+ 
     if(intersectingEarthMesh) {
         document.onmousemove = function(e) {
             onDocumentMouseDown(e);
         }
     }
 });
-
+ 
 document.addEventListener("mouseup", function(e){
     document.onmousemove = function(e) {
         onDocumentMouseMove(e);
     }
 });
-
+ 
+document.getElementById("scaleSlider").oninput = function() {
+    let scaleValue = map(this.value, 0, 100, 0.1, 2);
+    console.log(scaleValue);
+    sceneScale.scale.set(scaleValue, scaleValue, scaleValue);
+}
+ 
 //document.addEventListener("mousemove", onDocumentMouseDown);
-
+ 
 function onDocumentMouseMove(event) {
     let canvasRect = canvas.getBoundingClientRect();
     let mouse3D = new THREE.Vector3(
@@ -895,7 +978,7 @@ function onDocumentMouseMove(event) {
     
     raycaster.setFromCamera(mouse3D, camera);
     let intersects = raycaster.intersectObjects(OBJECTS);
-
+ 
     for(let popup of popups) {
         if(intersects.length > 0 && intersects[0].object == popup.mesh) {
             popup.selected = true;
@@ -917,29 +1000,29 @@ function onDocumentMouseMove(event) {
         }
     }
 }
-
+ 
 function rotateAboutPoint(obj, point, axis, theta, pointIsWorld){
     pointIsWorld = (pointIsWorld === undefined)? false : pointIsWorld;
-
+ 
     if(pointIsWorld){
         obj.parent.localToWorld(obj.position); // compensate for world coordinate
     }
-
+ 
     obj.position.sub(point); // remove the offset
     obj.position.applyAxisAngle(axis, theta); // rotate the POSITION
     obj.position.add(point); // re-add the offset
-
+ 
     if(pointIsWorld){
         obj.parent.worldToLocal(obj.position); // undo world coordinates compensation
     }
-
+ 
     obj.rotateOnAxis(axis, theta); // rotate the OBJECT
 }
-
+ 
 let pressed = false;
 function onDocumentMouseDown(event) {
     event.preventDefault();
-
+ 
     if(event.clientX > mouseX) {
         earth.rotateForward();
     } else if(event.clientX < mouseX){
@@ -948,25 +1031,40 @@ function onDocumentMouseDown(event) {
     
     mouseX = event.clientX;
 }
-
+ 
+ 
+ 
 function resizeRendererToDisplaySize() {
-    camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+    canvas = renderer.domElement;
+    //camera.aspect = canvas.clientWidth / canvas.clientHeight;
+    camera.left = canvas.clientWidth / - 2;
+    camera.right = canvas.clientWidth / 2;
+    camera.top = canvas.clientHeight / 2;
+    camera.bottom = canvas.clientHeight / - 2;
     camera.updateProjectionMatrix();
     
-    WIDTH = canvas.offsetWidth;
-    HEIGHT = canvas.offsetHeight;
+    WIDTH = canvas.clientWidth;
+    HEIGHT = canvas.clientHeight;
+ 
+    let current = WIDTH * HEIGHT;
+    let min = 702000;
+    let max = 2073600;
+    let minSize = 0.6;
+    let maxSize = 1;
+    let newScale = map(current, min, max, minSize, maxSize);
+    sceneScale.scale.set(newScale, newScale, newScale);
     
-    composer.setSize(canvas.offsetWidth, canvas.offsetHeight );
-    renderer.setSize(canvas.offsetWidth, canvas.offsetHeight );
+    renderer.setSize(WIDTH, HEIGHT );
+    composer.setSize(WIDTH, HEIGHT );
 }
-
+ 
 function addToScene(mesh, collide = false) {
     if(collide) {
         OBJECTS.push(mesh);
     }
     scene.add(mesh);
 }
-
+ 
 function createGround() {
     let texture = new THREE.TextureLoader().load("./assets/ground.png");
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
@@ -981,11 +1079,11 @@ function createGround() {
     ground.position.y = -3.0;
     scene.add(ground);
 }
-
+ 
 function map(num, in_min, in_max, out_min, out_max){
   return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-
+ 
 function random(min, max) { // min and max included 
   let rand = Math.random();
     if (min > max) {
@@ -993,6 +1091,7 @@ function random(min, max) { // min and max included
       min = max;
       max = tmp;
     }
-
+ 
     return rand * (max - min) + min;
 }
+
