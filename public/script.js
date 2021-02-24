@@ -6,30 +6,30 @@ import { UnrealBloomPass } from "./jsm/postprocessing/UnrealBloomPass.js";
 import { FBXLoader } from './jsm/loaders/FBXLoader.js'
  
 let canvas = document.querySelector("#myCanvas");
-
+ 
+// Create loading manager
 var manager = new THREE.LoadingManager();
 manager.onLoad = function() {
-    console.log("WOKRING");
     document.getElementById("loadingScreen").style.display = "none";
 };
  
+// Create renderer and scene
 let renderer = new THREE.WebGLRenderer({canvas});
 renderer.setSize(canvas.clientWidth, canvas.clientHeight);
- 
 let scene = new THREE.Scene();
  
+// global variables
 let WIDTH = canvas.offsetWidth;
 let HEIGHT = canvas.offsetHeight;
 let OBJECTS = [];
 let tetrahedrons = [];
 const labelContainerElem = document.querySelector("#labels");
  
-//let camera = new THREE.PerspectiveCamera(65, canvas.clientWidth/canvas.clientHeight, 0.1, 1000);
 let camera = new THREE.OrthographicCamera( WIDTH / - 2, WIDTH / 2, HEIGHT / 2, HEIGHT / - 2, 1, 1000 );
 camera.position.set(0.0, 0.0, 500);
  
+// Post processing
 var renderScene = new RenderPass( scene, camera );
- 
 var bloomPass = new UnrealBloomPass( new THREE.Vector2( WIDTH, HEIGHT ), 1.5, 0.4, 0.85 ); //1.0, 9, 0.5, 512);
 bloomPass.renderToScreen = true;
 bloomPass.threshold = 0.7;
@@ -37,64 +37,60 @@ bloomPass.strength = 1;
 bloomPass.radius = 0.4;
  
 let composer = new EffectComposer( renderer );
-// let params = {
-//     edgeStrength: 1.0,
-//     edgeGlow: 4,
-//     egdeThickness: 1.0
-// };
+let params = {
+    edgeStrength: 2.3,
+    edgeGlow: 1,
+    edgeThickness: 5.0
+};
  
 let outlinePass = new OutlinePass(new THREE.Vector2(WIDTH, HEIGHT), scene, camera);
-// outlinePass.edgeStrength = params.edgeStrength;
-// outlinePass.edgeGlow = params.edgeGlow;
-// outlinePass.egdeThickness = params.egdeThickness;
-// outlinePass.visibleEdgeColor.set(0xffffff);
-// outlinePass.hiddenEdgeColor.set(0xffffff);
+outlinePass.edgeStrength = params.edgeStrength;
+outlinePass.edgeGlow = params.edgeGlow;
+outlinePass.edgeThickness = params.edgeThickness;
+outlinePass.visibleEdgeColor.set(0xffffff);
+outlinePass.hiddenEdgeColor.set(0x190A05);
  
 composer.setSize( WIDTH, HEIGHT );
 composer.addPass( renderScene );
 composer.addPass( bloomPass );
 composer.addPass( outlinePass );
- 
-let shaderMaterial = new THREE.ShaderMaterial({
-        vertexShader:   document.querySelector('#vertexshader').textContent,
-        fragmentShader: document.querySelector('#fragmentshader').textContent
-    });
-let sphere = new THREE.Mesh(
-       new THREE.SphereGeometry(1, 16, 16),
-       shaderMaterial);
- 
+
 let sceneScale = new THREE.Object3D();
 sceneScale.visible = true;
 scene.add(sceneScale);
- 
-    // add the sphere and camera to the scene
-//scene.add(sphere);
  
 let outlinePassObjects = [];
  
 class Planet {
     constructor(x, y, z, r, textureSrc) {
-        let texture = new THREE.TextureLoader(manager).load(textureSrc);
+        let texture = new THREE.TextureLoader().load(textureSrc);
         this.material = new THREE.MeshBasicMaterial({map: texture, reflectivity: 1.0});
-        //this.material = new THREE.MeshPhongMaterial({color: 0xFFFFFF, reflectivity: 1.0, emissive: 0xFFFFFF});
-        this.r = r;
         this.geometry = new THREE.SphereGeometry(r, 64, 64);
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         this.mesh.position.set(x, y, z);
         sceneScale.add(this.mesh);
-        //outlinePass.selectedObjects = [this.mesh];
         outlinePassObjects.push(this.mesh);
         OBJECTS.push(this.mesh);
+ 
+        let material = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, map: new THREE.TextureLoader().load("./assets/particle.png"), blending: THREE.AdditiveBlending, transparent: true});
+        let geometry = new THREE.SphereGeometry(r + 4, 64, 64);
+        let mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = Math.PI/1.5;
+        mesh.rotation.z = -Math.PI/4;
+        mesh.position.set(x, y, z);
+        //sceneScale.add(mesh);
+ 
         this.rotateSpeed = 0.03;
-
+        this.r = r;
+ 
         this.animating = false;
         this.animationStartTime = 0;
         this.animationDuration = 1000;
-
+ 
         this.animationXrotation = 0;
         this.animationYrotation = 0;
     }
-
+ 
     resetRotation() {
         this.animating = true;
         this.animationStartTime = millis();
@@ -110,7 +106,7 @@ class Planet {
     rotateBackward(dist) {
         this.mesh.rotation.y -= dist;
     }
-
+ 
     update() {
         if(this.animating) {
             let timePassed = millis() - this.animationStartTime;
@@ -118,7 +114,7 @@ class Planet {
             let yRotation = map(timePassed, 0, this.animationDuration, this.animationYrotation, 0);
             this.mesh.rotation.x = xRotation;
             this.mesh.rotation.y = yRotation;
-
+ 
             if(millis() > this.animationStartTime + this.animationDuration) {
                 this.animating = false;
             }
@@ -216,21 +212,19 @@ class ISS {
     constructor(parent, rotationAxis) {
         let texture = new THREE.TextureLoader().load("./assets/iss.png");
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
  
         let material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         let geometry = new THREE.PlaneGeometry(150, 60, 0);
-
-        this.orbitAngle = 0;
-        this.orbitSpeed = 0.013;
-        this.orbitDist = 300;
-
-        this.parent = parent;
  
         this.mesh = new THREE.Mesh(geometry, material);
         sceneScale.add(this.mesh);
+ 
+        this.parent = parent;
+        this.orbitAngle = 0;
+        this.orbitSpeed = 0.013;
+        this.orbitDist = 300;
     }
-
+ 
     orbit() {
         let r = this.orbitDist;
         let horz = 0;
@@ -248,26 +242,42 @@ class Rocket {
     constructor(x, y, z) {
         let texture = new THREE.TextureLoader().load("./assets/rocket.png");
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
  
         let material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, emissive: 0x000000, emissiveIntensity: 0 });
         let geometry = new THREE.PlaneGeometry(17, 100, 0);
  
-        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh = new THREE.Object3D();
         this.mesh.position.set(x, y, z);
         this.mesh.rotation.z = -Math.PI/2;
         sceneScale.add(this.mesh);
- 
+
         let self = this;
+        let loader2 = new FBXLoader(manager);
+        loader2.load("./assets/rocket.fbx", function(object) {
+            let rocketMesh = object.children[0];
+            for(let mesh of rocketMesh.children) {
+                if(mesh.name == "Cylinder016") {
+                    mesh.rotation.set(0, 0, 0);
+                }
+            }
+            console.log(rocketMesh);
+            rocketMesh.position.y = -52;
+            rocketMesh.scale.set(4, 4, 24.184);
+            console.log(object);
+            self.mesh.add(rocketMesh);
+            self.rocketMesh = rocketMesh;
+        })
+ 
         let loader = new FBXLoader();
         loader.load("./assets/exhaust.fbx", function(object) {
             let exhaustMesh = object;
-            console.log(exhaustMesh);
             let flameMaterial = new THREE.MeshLambertMaterial ({ color: 0xC2261F, transparent: true, opacity: 1, reflectivity: 1.0, emissive: 0xC2261F, emissiveIntensity: 4 });
-            exhaustMesh.scale.set(0.05, 0.08, 0.05);
+            exhaustMesh.children[0].material = flameMaterial;
+ 
+            exhaustMesh.scale.set(0.05, 0.04, 0.05);
             exhaustMesh.position.set(0, -70, 0);
             exhaustMesh.rotateZ(Math.PI/2);
-            exhaustMesh.children[0].material = flameMaterial;
+ 
             self.exhaust = exhaustMesh;
             self.mesh.add(exhaustMesh);
         })
@@ -294,20 +304,21 @@ class Rocket {
         this.exhaustDriftTimer = millis();
         //scene.add(flameMesh);
  
-        this.minX = x;
-        this.maxX = x + 600;
+        this.startPosition = x;
+        this.endPosition = x + 600;
         this.movementSpeed = 0.2;
     }
  
     update() {
+        if(this.rocketMesh) {
+            //this.rocketMesh.rotation.z += 0.01;
+        }
+        // Only start updating once exhaust mesh has been loaded
         if(this.exhaust) {
             this.animate();
  
-            //let x = this.mesh.position.x + this.movementSpeed;
- 
-            //this.mesh.position.set(x, this.mesh.position.y, this.mesh.position.z);
             this.mesh.position.x += this.movementSpeed;
-            if(this.mesh.position.x > this.maxX || this.mesh.position.x < this.minX) {
+            if(this.mesh.position.x > this.endPosition || this.mesh.position.x < this.startPosition) {
                 this.movementSpeed = -this.movementSpeed;
                 this.mesh.rotateZ(Math.PI);
             }
@@ -379,7 +390,6 @@ class Moon {
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         sceneScale.add(this.mesh);
         OBJECTS.push(this.mesh);
-        console.log(parent.position.x);
  
         this.parent = parent;
  
@@ -394,8 +404,6 @@ class Moon {
         this.rotatePosition = new THREE.Vector3(startX, startY, startZ);
         this.mesh.position.set(startX, startY, startZ);
         this.orbitDist = orbitDist;
- 
-        //this.parent = parent;
         
         this.rotateSpeed = 0.01;
         this.orbitAngle = 0;
@@ -420,7 +428,7 @@ class Moon {
         this.orbitAngle += this.orbitSpeed;
  
         this.mesh.position.set(this.parent.position.x + x, this.parent.position.y + y, this.parent.position.z + z);
-        this.mesh.rotateOnAxis(this.rotationAxis.normalize(), 0.01);
+        this.mesh.rotateOnAxis(this.rotationAxis.normalize(), 0.005);
     }
  
     orbit() {
@@ -438,7 +446,7 @@ class Moon {
 }
  
 const tempV = new THREE.Vector3();
-
+ 
  
 class Popup {
     constructor(parent, text, followPopup, latitude, longitude, width, height, addToParent) {
@@ -450,7 +458,7 @@ class Popup {
         this.mesh = new THREE.Mesh(geometry, material);
  
         this.parent = parent.mesh;
-
+ 
         let x = 0;
         let y = 0;
         let z = 0;
@@ -469,11 +477,12 @@ class Popup {
         if(addToParent != undefined) {
             this.addToParent = addToParent;
         }
+ 
         if(followPopup) {
             if(parent instanceof Planet || parent instanceof Moon) {
                 this.mesh.position.z = parent.r;
             }
-
+ 
             if(this.addToParent) {
                 parent.mesh.add(this.mesh);
             } else {
@@ -512,6 +521,7 @@ class Popup {
         
         labelContainerElem.appendChild(elem);
         this.label = elem;
+        this.label.style.display = "none";
  
         this.selected = false;
     }
@@ -555,19 +565,19 @@ function createBackgroundPlane() {
  
 class StarBackground {
     constructor() {
+        // Create canvas
         this.ctx = document.createElement("canvas").getContext("2d");
         this.ctx.canvas.width = 1920;
         this.ctx.canvas.height = 1080;
  
         let background = new Image();
-        background.src = "./assets/stars - Copy.jpg";
+        background.src = "./assets/myCanvas.jpg";
         this.image = background;
  
         this.ctx.drawImage(background, 0, 0);
  
+        // Create mesh
         this.texture = new THREE.CanvasTexture(this.ctx.canvas);
-        //texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
- 
         let material = new THREE.MeshBasicMaterial({ map: this.texture });
         let geometry = new THREE.PlaneGeometry(1920, 1080, 0);
  
@@ -575,6 +585,7 @@ class StarBackground {
         mesh.position.set(0, 0, -500);
         scene.add(mesh);
  
+        // Class variables
         this.starTime = millis();
         this.starTimer = Math.round(Math.random() * 1000);
         this.stars = [];
@@ -590,7 +601,9 @@ class StarBackground {
  
             this.stars.push(new Star(randX, randY, this.ctx));
         }
+ 
         this.ctx.drawImage(this.image, 0, 0);
+ 
         for(let i = this.stars.length - 1; i >= 0; i--) {
             this.stars[i].update();
             this.stars[i].show();
@@ -642,28 +655,20 @@ let moon = new Moon(earth.mesh, new THREE.Vector3(1, -1, 0));
 //let iss = new ISSCanvas(earth.mesh.position.x + 300, 0, 0);
 let iss = new ISS(earth.mesh, new THREE.Vector3(1, 0, 0));
 let rocket = new Rocket(earth.mesh.position.x + 600, 0, 0);
-//outlinePass.selectedObjects = outlinePassObjects;
+outlinePass.selectedObjects = outlinePassObjects;
  
 let popups = [];
 for(let data of POPUP_DATA) {
-    popups.push(new Popup(earth, data.popupHTML, false, data.lat, data.long));
+    if(data.long && data.lat) {
+        popups.push(new Popup(earth, data.popupHTML, false, data.lat, data.long));
+    }
 }
 setTimeout(() => {
-    popups.push(new Popup(iss, "Examining changes in cosmonaut motivation and links to coping and self-regulation during 6 month missions aboard the ISS", true, null, null, 120, 60));
+    popups.push(new Popup(iss, POPUP_DATA.find((popup) => popup.name == "iss").popupHTML, true, null, null, 120, 60));
 }, 1000);
-popups.push(new Popup(rocket, "Using advances in artificial intelligence to power robotic psychological companions on a mission to Mars", true, null, null, 40, 110));
-popups.push(new Popup(mars, "Developing psychological research roadmaps to support and sustain human life during deep space exploration missions to Mars", true, null, null, 160, 160));
-popups.push(new Popup(moon, "Applying agent based models to historic polar exploration material to support future Moon-based civilisations", true, null, null, 70, 70, false));
-// let popupGR = new Popup(71.7, -42.6, earth, "Relations between linguistic markers of stress and health on expedition. Using a digital tool to monitor and optimise stress and health during a lunar analogue mission");
-// let popupUK = new Popup(55.4, -3.4, earth, "Monitoring and supporting resilient performance in extreme and high risk populations");
-// let popup1 = new Popup(-8.7, -55.5, earth, "This is South America");
-// let popup2 = new Popup(-8.7, -55.5, earth, "This is South America");
-// let popup3 = new Popup(-8.7, -55.5, earth, "This is South America");
-// let popup4 = new Popup(-8.7, -55.5, earth, "This is South America");
-// let popup5 = new Popup(-8.7, -55.5, earth, "This is South America");
- 
-// popups.push(popupGR);
-// popups.push(popupUK);
+popups.push(new Popup(rocket, POPUP_DATA.find((popup) => popup.name == "rocket").popupHTML, true, null, null, 40, 110));
+popups.push(new Popup(mars, POPUP_DATA.find((popup) => popup.name == "mars").popupHTML, true, null, null, 160, 160));
+popups.push(new Popup(moon, POPUP_DATA.find((popup) => popup.name == "moon").popupHTML, true, null, null, 70, 70, false));
  
 let background = new StarBackground();
 //createBackgroundPlane();
@@ -704,12 +709,10 @@ let draw = function() {
 }
 draw();
  
-let mouseX = 0;
- 
 document.onmousemove = function(e) {
     onDocumentMouseMove(e);
 }
-
+ 
 document.onclick = function(e) {
     onDocumentMouseClick(e);
 }
@@ -737,7 +740,7 @@ document.addEventListener("mousedown", function(event){
  
     if(intersectingEarthMesh) {
         document.onmousemove = function(e) {
-            onDocumentMouseDown(e);
+            rotateEarth(e);
         }
     }
 });
@@ -749,12 +752,12 @@ document.addEventListener("mouseup", function(e){
     };
     
     document.body.style.cursor = "default";
-
+ 
     document.onmousemove = function(e) {
         onDocumentMouseMove(e);
     }
 });
-
+ 
 document.getElementById("heading").addEventListener("click", function(e) {
     console.log("WORKING");
     let popup = document.querySelector("#heading .popup");
@@ -766,7 +769,7 @@ document.getElementById("heading").addEventListener("click", function(e) {
 });
  
 //document.addEventListener("mousemove", onDocumentMouseDown);
-
+ 
 function onDocumentMouseClick(event) {
     let canvasRect = canvas.getBoundingClientRect();
     let mouse3D = new THREE.Vector3(
@@ -800,7 +803,7 @@ function onDocumentMouseMove(event) {
     
     raycaster.setFromCamera(mouse3D, camera);
     let intersects = raycaster.intersectObjects(OBJECTS);
-
+ 
     let intersectedPopup = false;
     for(let popup of popups) {
         if(intersects.length > 0 && intersects[0].object == popup.mesh) {
@@ -813,7 +816,7 @@ function onDocumentMouseMove(event) {
         //     popup.hideLabel();
         // }
     }
-
+ 
     if(intersectedPopup) {
         document.body.style.cursor = "pointer";
     } else {
@@ -825,39 +828,32 @@ let lastMousePos = {
     x: null,
     y: null
 };
-let pressed = false;
-function onDocumentMouseDown(event) {
+ 
+function rotateEarth(event) {
     event.preventDefault();
     document.body.style.cursor = "move";
-
-    let dist = 0.01;
+ 
     let xDist = 0;
     let yDist = 0;
+ 
     if(lastMousePos.x != null) {
         xDist = event.clientX - lastMousePos.x;
         yDist = event.clientY - lastMousePos.y;
         xDist /= 200;
         yDist /= 200;
-        dist = Math.sqrt(xDist * xDist + yDist * yDist)/200;
     }
  
     earth.rotateForward(xDist, yDist);
-
-    if(event.clientX > mouseX) {
-    } else if(event.clientX < mouseX){
-        //earth.rotateBackward(xDist, yDist);
-    }
-    
-    mouseX = event.clientX;
-
+ 
     lastMousePos.x = event.clientX;
     lastMousePos.y = event.clientY;
 }
-
+ 
 document.getElementById("earthButton").addEventListener("click", function(e) {
     earth.resetRotation();
 })
  
+// Function that handles sizing of the canvas
 function resizeRendererToDisplaySize() {
     canvas = renderer.domElement;
     //camera.aspect = canvas.clientWidth / canvas.clientHeight;
@@ -889,6 +885,7 @@ function addToScene(mesh, collide = false) {
     scene.add(mesh);
 }
  
+// Map number from one range to another
 function map(num, in_min, in_max, out_min, out_max){
   return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -903,4 +900,3 @@ function random(min, max) { // min and max included
  
     return rand * (max - min) + min;
 }
-
