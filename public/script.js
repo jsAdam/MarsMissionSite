@@ -6,6 +6,12 @@ import { UnrealBloomPass } from "./jsm/postprocessing/UnrealBloomPass.js";
 import { FBXLoader } from './jsm/loaders/FBXLoader.js'
  
 let canvas = document.querySelector("#myCanvas");
+
+var manager = new THREE.LoadingManager();
+manager.onLoad = function() {
+    console.log("WOKRING");
+    document.getElementById("loadingScreen").style.display = "none";
+};
  
 let renderer = new THREE.WebGLRenderer({canvas});
 renderer.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -68,7 +74,7 @@ let outlinePassObjects = [];
  
 class Planet {
     constructor(x, y, z, r, textureSrc) {
-        let texture = new THREE.TextureLoader().load(textureSrc);
+        let texture = new THREE.TextureLoader(manager).load(textureSrc);
         this.material = new THREE.MeshBasicMaterial({map: texture, reflectivity: 1.0});
         //this.material = new THREE.MeshPhongMaterial({color: 0xFFFFFF, reflectivity: 1.0, emissive: 0xFFFFFF});
         this.r = r;
@@ -80,14 +86,43 @@ class Planet {
         outlinePassObjects.push(this.mesh);
         OBJECTS.push(this.mesh);
         this.rotateSpeed = 0.03;
+
+        this.animating = false;
+        this.animationStartTime = 0;
+        this.animationDuration = 1000;
+
+        this.animationXrotation = 0;
+        this.animationYrotation = 0;
+    }
+
+    resetRotation() {
+        this.animating = true;
+        this.animationStartTime = millis();
+        this.animationXrotation = this.mesh.rotation.x;
+        this.animationYrotation = this.mesh.rotation.y;
     }
     
-    rotateForward() {
-        this.mesh.rotation.y += this.rotateSpeed;
+    rotateForward(xDist, yDist) {
+        this.mesh.rotation.y += xDist;
+        this.mesh.rotation.x += yDist;
     }
         
-    rotateBackward() {
-        this.mesh.rotation.y -= this.rotateSpeed;
+    rotateBackward(dist) {
+        this.mesh.rotation.y -= dist;
+    }
+
+    update() {
+        if(this.animating) {
+            let timePassed = millis() - this.animationStartTime;
+            let xRotation = map(timePassed, 0, this.animationDuration, this.animationXrotation, 0);
+            let yRotation = map(timePassed, 0, this.animationDuration, this.animationYrotation, 0);
+            this.mesh.rotation.x = xRotation;
+            this.mesh.rotation.y = yRotation;
+
+            if(millis() > this.animationStartTime + this.animationDuration) {
+                this.animating = false;
+            }
+        }
     }
 }
  
@@ -229,8 +264,8 @@ class Rocket {
             let exhaustMesh = object;
             console.log(exhaustMesh);
             let flameMaterial = new THREE.MeshLambertMaterial ({ color: 0xC2261F, transparent: true, opacity: 1, reflectivity: 1.0, emissive: 0xC2261F, emissiveIntensity: 4 });
-            exhaustMesh.scale.set(0.05, 0.05, 0.05);
-            exhaustMesh.position.set(0, -50, 0);
+            exhaustMesh.scale.set(0.05, 0.08, 0.05);
+            exhaustMesh.position.set(0, -70, 0);
             exhaustMesh.rotateZ(Math.PI/2);
             exhaustMesh.children[0].material = flameMaterial;
             self.exhaust = exhaustMesh;
@@ -336,61 +371,6 @@ class Rocket {
     }
 }
  
-class Moon2 {
-    constructor(parent, rotationAxis) {
-        let texture = new THREE.TextureLoader().load("./assets/moon.jpg");
-        this.material = new THREE.MeshBasicMaterial({map: texture});
-        this.geometry = new THREE.SphereGeometry(40, 64, 64);
-        this.mesh = new THREE.Mesh(this.geometry, this.material);
-        scene.add(this.mesh);
-        OBJECTS.push(this.mesh);
-        console.log(parent.position.x);
- 
-        this.parent = parent;
- 
-        this.rotationAxis = rotationAxis;
- 
-        let orbitDist = 275;
-        let startX = parent.position.x + -rotationAxis.x * orbitDist;
-        let startY = parent.position.y + rotationAxis.y * orbitDist;
-        let startZ = parent.position.z + rotationAxis.z * orbitDist;
- 
-        this.mesh.position.set(startX, startY, startZ);
- 
-        //this.parent = parent;
-        
-        this.rotateSpeed = 0.03;
-        this.orbitAngle = 0;
-        this.orbitSpeed = 0.01;
-        this.orbitDist = 400;
- 
-        this.orbitY = 200;
-        this.lastOrbitPI = 0;
-        this.orbitYDir = -1;
-    }
- 
-    orbit2() {
-        this.mesh.position.sub(this.parent.position); // remove the offset
-        this.mesh.position.applyAxisAngle(this.rotationAxis, this.orbitSpeed); // rotate the POSITION
-        this.mesh.position.add(this.parent.position); // re-add the offset
-    
-        this.mesh.rotateOnAxis(this.rotationAxis, this.orbitSpeed); // rotate the OBJECT
-    }
- 
-    orbit() {
-        this.orbitAngle += this.orbitSpeed;
-        let p = new THREE.Vector3(this.orbitDist * Math.cos(this.orbitAngle), 0, this.orbitDist * Math.sin(this.orbitAngle));
- 
-        if(this.orbitAngle - this.lastOrbitPI > Math.PI) {
-            this.orbitYDir = -this.orbitYDir;
-            this.lastOrbitPI = this.orbitAngle;
-        }
-        let y = map(this.orbitAngle, this.lastOrbitPI, this.lastOrbitPI + Math.PI, -this.orbitYDir * this.orbitY, this.orbitYDir * this.orbitY);
- 
-        this.mesh.position.set(this.parent.mesh.position.x + p.x, this.parent.mesh.position.y + p.y + y, this.parent.mesh.position.z + p.z);
-    }
-}
- 
 class Moon {
     constructor(parent, rotationAxis) {
         let texture = new THREE.TextureLoader().load("./assets/moon.jpg");
@@ -431,10 +411,6 @@ class Moon {
     }
  
     orbit2() {
-        //this.rotatePosition.sub(this.parent.position);
-        //this.rotatePosition.applyAxisAngle(this.rotationAxis, this.orbitSpeed);
-        //this.rotatePosition.add(this.parent.position);
-        //this.mesh.position.set(this.rotatePosition.x, this.rotatePosition.y, this.rotatePosition.z);
         let r = this.orbitDist;
         let horz = Math.PI/4;
         let x = r * Math.sin(this.orbitAngle) * Math.cos(horz);
@@ -444,24 +420,7 @@ class Moon {
         this.orbitAngle += this.orbitSpeed;
  
         this.mesh.position.set(this.parent.position.x + x, this.parent.position.y + y, this.parent.position.z + z);
-        this.rotateAngle += 0.1;
-        
-        //this.mesh.rotation.y = Math.cos(this.rotateAngle);
-        //this.mesh.rotation.x = Math.sin(this.rotateAngle);
-    
-        // if(this.xDir) {
-        //     this.mesh.rotation.x += 0.1;
-        //     if(this.mesh.rotation.x > Math.PI) {
-        //         this.xDir = false;
-        //     }
-        // } else {
-        //     this.mesh.rotation.x -= 0.1;
-        //     if(this.mesh.rotation.x < 0) {
-        //         this.xDir = true;
-        //     }
-        // }
- 
-        //this.mesh.rotateOnWorldAxis(this.rotationAxis, 0.05);
+        this.mesh.rotateOnAxis(this.rotationAxis.normalize(), 0.01);
     }
  
     orbit() {
@@ -479,10 +438,13 @@ class Moon {
 }
  
 const tempV = new THREE.Vector3();
+
  
 class Popup {
-    constructor(parent, text, followPopup, latitude, longitude) {
-        let geometry = new THREE.BoxGeometry(60, 60, 5);
+    constructor(parent, text, followPopup, latitude, longitude, width, height, addToParent) {
+        let boxWidth = width || 60;
+        let boxheight = height || 60;
+        let geometry = new THREE.BoxGeometry(boxWidth, boxheight, 5);
         //let material = new THREE.MeshBasicMaterial({color: 0xFFFFFF, reflectivity: 1.0, emissive: 0xFFFFFF});
         let material = new THREE.MeshBasicMaterial({color: 0x0000FF});
         this.mesh = new THREE.Mesh(geometry, material);
@@ -493,7 +455,7 @@ class Popup {
         let y = 0;
         let z = 0;
  
-        if(latitude !== null && longitude !== null) {
+        if(latitude !== null && longitude !== null && !followPopup) {
             let rho = parent.r;
             let phi   = (90-latitude)*(Math.PI/180)
             let theta = (longitude+180)*(Math.PI/180)
@@ -503,33 +465,41 @@ class Popup {
             y = ((rho) * Math.cos(phi));
         }
  
+        this.addToParent = true || addToParent;
+        if(addToParent != undefined) {
+            this.addToParent = addToParent;
+        }
         if(followPopup) {
             if(parent instanceof Planet || parent instanceof Moon) {
                 this.mesh.position.z = parent.r;
             }
-            parent.mesh.add(this.mesh);
+
+            if(this.addToParent) {
+                parent.mesh.add(this.mesh);
+            } else {
+                sceneScale.add(this.mesh);
+            }
             //this.mesh.position.set(parent.mesh.position.x, parent.mesh.position.y, parent.mesh.position.z);
             OBJECTS.push(this.mesh);
-            this.planeGeometryPopup = true;
         } else {
             parent.mesh.add(this.mesh);
             this.mesh.position.set(x, y, z);
             OBJECTS.push(this.mesh);
             this.mesh.lookAt(parent.mesh.position);
+            
+            let iconTexture = new THREE.TextureLoader().load("./assets/heatmap.png");
+            let iconGeometry = new THREE.PlaneGeometry(40, 40, 40);
+            let iconMaterial = new THREE.MeshBasicMaterial({ map: iconTexture, transparent: true });
+            let iconMesh = new THREE.Mesh(iconGeometry, iconMaterial);
+            parent.mesh.add(iconMesh);
+            iconMesh.position.set(x, y, z);
+            var v = new THREE.Vector3();
+            var target = new THREE.Vector3();
+            iconMesh.getWorldPosition(target);
+            v.subVectors(target, parent.mesh.position).add(target);
+            iconMesh.lookAt(v);
         }
         this.mesh.visible = false;
- 
-        let iconTexture = new THREE.TextureLoader().load("./assets/heatmap.png");
-        let iconGeometry = new THREE.PlaneGeometry(40, 40, 40);
-        let iconMaterial = new THREE.MeshBasicMaterial({ map: iconTexture, transparent: true });
-        let iconMesh = new THREE.Mesh(iconGeometry, iconMaterial);
-        parent.mesh.add(iconMesh);
-        iconMesh.position.set(x, y, z);
-        var v = new THREE.Vector3();
-        var target = new THREE.Vector3();
-        iconMesh.getWorldPosition(target);
-        v.subVectors(target, parent.mesh.position).add(target);
-        iconMesh.lookAt(v);
  
         let elem = document.createElement("div");
         let p = document.createElement("p");
@@ -547,7 +517,7 @@ class Popup {
     }
  
     update() {
-        //this.mesh.position.set(this.parent.position.x, this.mesh.position.y, this.mesh.position.z);
+        this.mesh.position.set(this.parent.position.x, this.parent.position.y, this.parent.position.z + 70);
     }
     
     showLabel() {
@@ -659,190 +629,6 @@ class Star {
     }
 }
  
-class Tetrahedron {
-    constructor(x, y, z, a) {
-        // Mesh Creation
-        let texture = new THREE.TextureLoader().load("assets/diffusion.png");
-        
-        let envMap = new THREE.CubeTextureLoader().setPath("assets/cubemap/").load(['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png']);
-        
-        this.material = new THREE.MeshPhysicalMaterial({map: texture, envMap, metalness: 1.0, roughness: 0.0});
-        this.geometry = new THREE.TetrahedronBufferGeometry(2, 0);
-        
-        this.centerPos = new THREE.Vector3(x, y, z);
-        
-        this.activePieceDist = 1;
-        this.deactivePieceDist = 0.75;
-        
-        this.topMesh = new THREE.Mesh(this.geometry, this.material);
-        this.topMesh.position.set(this.centerPos.x, this.centerPos.y + this.deactivePieceDist, this.centerPos.z);
-        this.topMesh.rotation.x = Math.PI;
-        
-        this.bottomMesh = new THREE.Mesh(this.geometry, this.material);
-        this.bottomMesh.rotation.y = Math.PI/4;
-        this.bottomMesh.rotation.x = Math.PI/3.3;
-        this.bottomMesh.updateMatrix();
-        this.bottomMesh.geometry.applyMatrix(this.bottomMesh.matrix);
-        
-        this.bottomMesh.position.set(this.centerPos.x, this.centerPos.y - this.deactivePieceDist, this.centerPos.z);
-        this.bottomMesh.rotation.set( 0, 0, 0 );
-        this.bottomMesh.scale.set( 1, 1, 1 );
-        
-        let material = new THREE.MeshPhongMaterial({color: 0xFF0000, visible: false});
-        let geometry = new THREE.BoxGeometry(3, 5, 3);
-        this.collisionMesh = new THREE.Mesh(geometry, material);
-        this.collisionMesh.position.set(this.centerPos.x, this.centerPos.y, this.centerPos.z);
-        
-        addToScene(this.topMesh);
-        addToScene(this.bottomMesh);
-        addToScene(this.collisionMesh, true);
-        
-        //let o = new Orb(0, 0, 0);
-        
-        let pivot = new THREE.Group();
-        scene.add(pivot);
-        pivot.add(this.topMesh);
-        pivot.add(this.bottomMesh);
-        pivot.add(this.collisionMesh);
-        
-        this.orbs = [];
-        this.orbs.push(new Orb(x, y, z, this.centerPos, 0.15));
-        for(let i = 0; i < 50; i++) {
-            let xValue = random(-1.2, 1.2);
-            let zValue = random(-1.2, 1.2);
-            let yValue = random(-0.1, 0.1);
-            let r = random(0.01, 0.03);
-            
-            let orb = new Orb(x + xValue, y + yValue, z + zValue, this.centerPos, r);
-            
-            this.orbs.push(orb);
-        }
-        for(let orb of this.orbs) {
-            pivot.add(orb.mesh);
-            orb.mesh.visible = false;
-        }
-        
-        console.log(a);
-        pivot.rotation.z = a || 0;
-        
-        // Class variables
-        this.active = false;
-        
-        this.animatingActivation= false;
-        this.animatingDeactivation = false;
-        this.animationDuration = 2000;
-        this.animationStartTime = 1000;
-        
-        this.activeRotationSpeed = 0.08;
-        this.deactiveRotationSpeed = 0.01;
-        this.rotationSpeed = 0.01;
-        
-        this.mouseInside = false;
-    }
-    
-    deactivate() {
-        this.animationStartTime = millis();
-        this.animatingDeactivation = true;
-    }
-    
-    activate() {
-        this.animationStartTime = millis();
-        this.animatingActivation = true;
-        for(let orb of this.orbs) {
-            orb.mesh.visible = true;
-        }
-    }
-    
-    update() {
-        if(this.animatingActivation) {
-            let time = (this.animationStartTime + this.animationDuration) - millis();
-            
-            let pieceDist = map(time, this.animationDuration, 0, this.deactivePieceDist, this.activePieceDist);
-            this.topMesh.position.set(this.centerPos.x, this.centerPos.y + pieceDist, this.centerPos.z);
-            this.bottomMesh.position.set(this.centerPos.x, this.centerPos.y - pieceDist, this.centerPos.z);
-            
-            let scale = map(time, this.animationDuration, 0, 0, 1);
-            for(let orb of this.orbs) {
-                orb.mesh.scale.set(scale, scale, scale);
-            }
-            
-            this.rotationSpeed = map(time, this.animationDuration, 0, this.deactiveRotationSpeed, this.activeRotationSpeed);
-            
-            if(millis() > this.animationStartTime + this.animationDuration) {
-                this.animatingActivation = false;
-                this.active = true;
-            }   
-        }
-        if(this.animatingDeactivation) {
-            let time = (this.animationStartTime + this.animationDuration) - millis();
-            
-            let pieceDist = map(time, this.animationDuration, 0, this.activePieceDist, this.deactivePieceDist);
-            this.topMesh.position.set(this.centerPos.x, this.centerPos.y + pieceDist, this.centerPos.z);
-            this.bottomMesh.position.set(this.centerPos.x, this.centerPos.y - pieceDist, this.centerPos.z);
-            
-            let scale = map(time, this.animationDuration, 0, 1, 0);
-            for(let orb of this.orbs) {
-                orb.mesh.scale.set(scale, scale, scale);
-            }
-            
-            this.rotationSpeed = map(time, this.animationDuration, 0, this.activeRotationSpeed, this.deactiveRotationSpeed);
-            
-            if(millis() > this.animationStartTime + this.animationDuration) {
-                for(let orb of this.orbs) {
-                    orb.mesh.visible = false;
-                }
-                this.animatingDeactivation = false;
-                this.active = false;
-            }   
-        }
-        
-        for(let orb of this.orbs) {
-            orb.update();
-        }
-        
-        this.topMesh.rotation.y += this.rotationSpeed;
-        this.bottomMesh.rotation.y += this.rotationSpeed;
-    }
-}
- 
-class Orb {
-    constructor(x, y, z, center, size) {
-        this.size = size;
-        let geometry = new THREE.SphereBufferGeometry(size, 16, 16);
-        let material = new THREE.MeshPhongMaterial({color: 0xFFFFFF, reflectivity: 1.0, emissive: 0xFFFFFF});
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.set(x, y, z);
-        scene.add(this.mesh);
-        
-        this.angle = 0;
-        
-        this.center = center;
-        console.log(center);
-        let d = center.distanceTo(this.mesh.position);
-        this.distanceToCenter = d;
-        this.radians = Math.random() * Math.PI * 2;
-        this.radians2 = 0;
-        
-        this.cw = Math.random() > 0.5 ? true : false;
-    }
-    
-    update() {
-        
-        //this.mesh.rotation.y += 0.01;
-        
-        if(this.cw) {
-            this.radians+=.005; 
-            //this.radians2+=.005;
-        } else {
-            this.radians-=.005; 
-            //this.radians2-=.005;
-        }
-        
-        this.mesh.position.x = this.center.x + (Math.cos(this.radians) * this.distanceToCenter);
-        this.mesh.position.z = this.center.z + (Math.sin(this.radians) * this.distanceToCenter);
-    }
-}
- 
 let CLOCK = new THREE.Clock();
 CLOCK.start();
  
@@ -852,7 +638,7 @@ let current = WIDTH * HEIGHT;
  
 let earth = new Planet(-600, 0, -3, 200, "assets/earth_clouds.png");
 let mars = new Planet(600, 0, 0, 106, "assets/mars.jpg");
-let moon = new Moon(earth.mesh, new THREE.Vector3(1, 1, 1));
+let moon = new Moon(earth.mesh, new THREE.Vector3(1, -1, 0));
 //let iss = new ISSCanvas(earth.mesh.position.x + 300, 0, 0);
 let iss = new ISS(earth.mesh, new THREE.Vector3(1, 0, 0));
 let rocket = new Rocket(earth.mesh.position.x + 600, 0, 0);
@@ -863,11 +649,11 @@ for(let data of POPUP_DATA) {
     popups.push(new Popup(earth, data.popupHTML, false, data.lat, data.long));
 }
 setTimeout(() => {
-    popups.push(new Popup(iss, "Examining changes in cosmonaut motivation and links to coping and self-regulation during 6 month missions aboard the ISS", true));
+    popups.push(new Popup(iss, "Examining changes in cosmonaut motivation and links to coping and self-regulation during 6 month missions aboard the ISS", true, null, null, 120, 60));
 }, 1000);
-popups.push(new Popup(rocket, "Using advances in artificial intelligence to power robotic psychological companions on a mission to Mars", true));
-popups.push(new Popup(mars, "Developing psychological research roadmaps to support and sustain human life during deep space exploration missions to Mars", true));
-popups.push(new Popup(moon, "Applying agent based models to historic polar exploration material to support future Moon-based civilisations", true));
+popups.push(new Popup(rocket, "Using advances in artificial intelligence to power robotic psychological companions on a mission to Mars", true, null, null, 40, 110));
+popups.push(new Popup(mars, "Developing psychological research roadmaps to support and sustain human life during deep space exploration missions to Mars", true, null, null, 160, 160));
+popups.push(new Popup(moon, "Applying agent based models to historic polar exploration material to support future Moon-based civilisations", true, null, null, 70, 70, false));
 // let popupGR = new Popup(71.7, -42.6, earth, "Relations between linguistic markers of stress and health on expedition. Using a digital tool to monitor and optimise stress and health during a lunar analogue mission");
 // let popupUK = new Popup(55.4, -3.4, earth, "Monitoring and supporting resilient performance in extreme and high risk populations");
 // let popup1 = new Popup(-8.7, -55.5, earth, "This is South America");
@@ -894,6 +680,7 @@ function millis() {
 let draw = function() {
     resizeRendererToDisplaySize();
  
+    earth.update();
     rocket.update();
     iss.orbit();
     moon.orbit2();
@@ -905,15 +692,13 @@ let draw = function() {
         t.update();
     }
     for(let popup of popups) {
-        if(popup.planeGeometryPopup) {
+        if(!popup.addToParent) {
             popup.update();
         }
         if(popup.selected) {
             popup.showLabel();
         }
     }
-    
-    //renderer.render(scene, camera);
     composer.render();
     requestAnimationFrame(draw);
 }
@@ -923,6 +708,10 @@ let mouseX = 0;
  
 document.onmousemove = function(e) {
     onDocumentMouseMove(e);
+}
+
+document.onclick = function(e) {
+    onDocumentMouseClick(e);
 }
  
 document.addEventListener("mousedown", function(event){
@@ -954,20 +743,31 @@ document.addEventListener("mousedown", function(event){
 });
  
 document.addEventListener("mouseup", function(e){
+    lastMousePos = {
+        x: null,
+        y: null
+    };
+    
+    document.body.style.cursor = "default";
+
     document.onmousemove = function(e) {
         onDocumentMouseMove(e);
     }
 });
- 
-document.getElementById("scaleSlider").oninput = function() {
-    let scaleValue = map(this.value, 0, 100, 0.1, 2);
-    console.log(scaleValue);
-    sceneScale.scale.set(scaleValue, scaleValue, scaleValue);
-}
+
+document.getElementById("heading").addEventListener("click", function(e) {
+    console.log("WORKING");
+    let popup = document.querySelector("#heading .popup");
+    if(popup.style.display == "block") {
+        popup.style.display = "none";
+    } else {
+        popup.style.display = "block";
+    }
+});
  
 //document.addEventListener("mousemove", onDocumentMouseDown);
- 
-function onDocumentMouseMove(event) {
+
+function onDocumentMouseClick(event) {
     let canvasRect = canvas.getBoundingClientRect();
     let mouse3D = new THREE.Vector3(
         ((event.clientX - canvasRect.left) / WIDTH ) * 2 - 1,
@@ -987,52 +787,76 @@ function onDocumentMouseMove(event) {
             popup.hideLabel();
         }
     }
+}
+ 
+function onDocumentMouseMove(event) {
+    let canvasRect = canvas.getBoundingClientRect();
+    let mouse3D = new THREE.Vector3(
+        ((event.clientX - canvasRect.left) / WIDTH ) * 2 - 1,
+        -((event.clientY - canvasRect.top) / HEIGHT ) * 2 + 1,
+        0.5 
+    );
+    let raycaster = new THREE.Raycaster();
     
-    for(let t of tetrahedrons) {
-        if(intersects.length > 0 && (intersects[0].object == t.collisionMesh)) {
-            if(!t.active && !t.animatingActivation) {
-                t.activate();
-            }
-        } else {
-            if(t.active && !t.animatingDeactivation) {
-                t.deactivate();
-            }
+    raycaster.setFromCamera(mouse3D, camera);
+    let intersects = raycaster.intersectObjects(OBJECTS);
+
+    let intersectedPopup = false;
+    for(let popup of popups) {
+        if(intersects.length > 0 && intersects[0].object == popup.mesh) {
+            intersectedPopup = true;
         }
+        // if(intersects.length > 0 && intersects[0].object == popup.mesh) {
+        //     popup.selected = true;
+        // } else {
+        //     popup.selected = false;
+        //     popup.hideLabel();
+        // }
+    }
+
+    if(intersectedPopup) {
+        document.body.style.cursor = "pointer";
+    } else {
+        document.body.style.cursor = "default";
     }
 }
  
-function rotateAboutPoint(obj, point, axis, theta, pointIsWorld){
-    pointIsWorld = (pointIsWorld === undefined)? false : pointIsWorld;
- 
-    if(pointIsWorld){
-        obj.parent.localToWorld(obj.position); // compensate for world coordinate
-    }
- 
-    obj.position.sub(point); // remove the offset
-    obj.position.applyAxisAngle(axis, theta); // rotate the POSITION
-    obj.position.add(point); // re-add the offset
- 
-    if(pointIsWorld){
-        obj.parent.worldToLocal(obj.position); // undo world coordinates compensation
-    }
- 
-    obj.rotateOnAxis(axis, theta); // rotate the OBJECT
-}
- 
+let lastMousePos = {
+    x: null,
+    y: null
+};
 let pressed = false;
 function onDocumentMouseDown(event) {
     event.preventDefault();
+    document.body.style.cursor = "move";
+
+    let dist = 0.01;
+    let xDist = 0;
+    let yDist = 0;
+    if(lastMousePos.x != null) {
+        xDist = event.clientX - lastMousePos.x;
+        yDist = event.clientY - lastMousePos.y;
+        xDist /= 200;
+        yDist /= 200;
+        dist = Math.sqrt(xDist * xDist + yDist * yDist)/200;
+    }
  
+    earth.rotateForward(xDist, yDist);
+
     if(event.clientX > mouseX) {
-        earth.rotateForward();
     } else if(event.clientX < mouseX){
-        earth.rotateBackward();
+        //earth.rotateBackward(xDist, yDist);
     }
     
     mouseX = event.clientX;
+
+    lastMousePos.x = event.clientX;
+    lastMousePos.y = event.clientY;
 }
- 
- 
+
+document.getElementById("earthButton").addEventListener("click", function(e) {
+    earth.resetRotation();
+})
  
 function resizeRendererToDisplaySize() {
     canvas = renderer.domElement;
@@ -1063,21 +887,6 @@ function addToScene(mesh, collide = false) {
         OBJECTS.push(mesh);
     }
     scene.add(mesh);
-}
- 
-function createGround() {
-    let texture = new THREE.TextureLoader().load("./assets/ground.png");
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(12, 12);
-    
-    let material = new THREE.MeshPhysicalMaterial({map: texture, bumpMap: texture});
-    
-    let geometry = new THREE.PlaneBufferGeometry(100, 100);
-    let ground = new THREE.Mesh(geometry, material);
-    ground.rotation.z = -Math.PI/4;
-    ground.rotation.x = -Math.PI/2;
-    ground.position.y = -3.0;
-    scene.add(ground);
 }
  
 function map(num, in_min, in_max, out_min, out_max){
