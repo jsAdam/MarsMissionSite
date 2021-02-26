@@ -11,8 +11,8 @@ let POPUP_DATA = [
         popupHTML: "<a href='https://www.driftextremes.com' target='_blank'>Field testing a digital tool for monitoring and optimising behaviour, performance and health in extremes</a>. <br> <br> <a href='https://www.wemjournal.org/article/S1080-6032(17)30258-2/fulltext' target='_blank'>Linguistic monitoring of emotion during a Greenland ski traverse.</a>"
     },
     {
-        lat: 55.4, 
-        long: -3.4,
+        lat: 54.77, 
+        long: -7.8,
         name: "England",
         popupHTML: "<a href='https://osf.io/gjuza/?view_only=b48799cbc17b49b9ba5b4d636d1dfa7b' target='_blank'>Stress-resilience in elite and Special Forces military personnel.</a> <br> <br> <a href='https://crestresearch.ac.uk/resources/coping-under-stress-report/' target='_blank'>Performance and coping under stress in security settings.</a>"
     },
@@ -47,8 +47,8 @@ let POPUP_DATA = [
         popupHTML: "<a href='https://docs.lib.purdue.edu/jhpee/vol13/iss1/1/' target='_blank'>Coping strategies used during an extreme Antarctic expedition.</a> <br><br> <a href='https://journals.sagepub.com/doi/abs/10.1177/0013916519886367' target='_blank'>Daily events, coping strategies and health during a British Army Antarctic ski expedition.</a>"
     },
     {
-        lat: -82.9, 
-        long: 135,
+        lat: -85.9, 
+        long: 30,
         name: "Antartica (Middle)",
         popupHTML: "<a href='https://www.frontiersin.org/articles/10.3389/fpsyg.2018.02235/full#:~:text=Human%20activity%20in%20Antarctica%20has,' target='_blank'>Psychological hibernation in Antarctica.</a>"
     },

@@ -210,19 +210,34 @@ class ISSCanvas {
  
 class ISS {
     constructor(parent, rotationAxis) {
-        let texture = new THREE.TextureLoader().load("./assets/iss.png");
+        let texture = new THREE.TextureLoader().load("./assets/issV2.png");
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
  
         let material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        let geometry = new THREE.PlaneGeometry(150, 60, 0);
+        let geometry = new THREE.PlaneGeometry(130, 104, 0);
  
         this.mesh = new THREE.Mesh(geometry, material);
         sceneScale.add(this.mesh);
  
+        this.minOrbitSpeed = 0.003;
+        this.maxOrbitSpeed = 0.013;
+
         this.parent = parent;
         this.orbitAngle = 0;
         this.orbitSpeed = 0.013;
         this.orbitDist = 300;
+
+        this.selected = false;
+    }
+
+    slowOrbit() {
+        this.orbitSpeed = this.minOrbitSpeed;
+        this.selected = true;
+    }
+
+    speedOrbit() {
+        this.orbitSpeed = this.maxOrbitSpeed;
+        this.selected = false;
     }
  
     orbit() {
@@ -307,9 +322,25 @@ class Rocket {
         this.startPosition = x;
         this.endPosition = x + 600;
         this.movementSpeed = 0.2;
+
+        this.rotate = false;
     }
  
     update() {
+        if(this.movementSpeed < 0) {
+            let dist = Math.abs(this.mesh.position.x - this.startPosition);
+            if(dist < 100 && !this.rotate) {
+                this.rotate = true;
+            }
+        }
+        if(this.rotate) {
+            this.mesh.rotation.y -= 0.006;
+            if(this.mesh.rotation.y < -Math.PI) {
+                this.mesh.rotation.y = Math.PI;
+                this.rotate = false;
+            }
+        }
+
         if(this.rocketMesh) {
             //this.rocketMesh.rotation.z += 0.01;
         }
@@ -320,7 +351,9 @@ class Rocket {
             this.mesh.position.x += this.movementSpeed;
             if(this.mesh.position.x > this.endPosition || this.mesh.position.x < this.startPosition) {
                 this.movementSpeed = -this.movementSpeed;
-                this.mesh.rotateZ(Math.PI);
+                if(this.mesh.position.x > this.endPosition) {
+                    this.mesh.rotateZ(Math.PI);
+                }
             }
         }
     }
@@ -496,7 +529,7 @@ class Popup {
             OBJECTS.push(this.mesh);
             this.mesh.lookAt(parent.mesh.position);
             
-            let iconTexture = new THREE.TextureLoader().load("./assets/heatmap.png");
+            let iconTexture = new THREE.TextureLoader().load("./assets/heatmap2.png");
             let iconGeometry = new THREE.PlaneGeometry(40, 40, 40);
             let iconMaterial = new THREE.MeshBasicMaterial({ map: iconTexture, transparent: true });
             let iconMesh = new THREE.Mesh(iconGeometry, iconMaterial);
@@ -681,6 +714,9 @@ scene.add(light);
 function millis() {
     return Math.floor(CLOCK.getElapsedTime() * 1000);
 }
+
+let mouseX = 0;
+let mouseY = 0;
  
 let draw = function() {
     resizeRendererToDisplaySize();
@@ -704,6 +740,7 @@ let draw = function() {
             popup.showLabel();
         }
     }
+
     composer.render();
     requestAnimationFrame(draw);
 }
@@ -785,9 +822,15 @@ function onDocumentMouseClick(event) {
     for(let popup of popups) {
         if(intersects.length > 0 && intersects[0].object == popup.mesh) {
             popup.selected = true;
+            if(popup.mesh.parent == iss.mesh) {
+                iss.slowOrbit();
+            }
         } else {
             popup.selected = false;
             popup.hideLabel();
+            if(popup.mesh.parent == iss.mesh) {
+                iss.speedOrbit();
+            }
         }
     }
 }
@@ -799,6 +842,10 @@ function onDocumentMouseMove(event) {
         -((event.clientY - canvasRect.top) / HEIGHT ) * 2 + 1,
         0.5 
     );
+
+    mouseX = event.clientX;
+    mouseY = event.clientX;
+
     let raycaster = new THREE.Raycaster();
     
     raycaster.setFromCamera(mouse3D, camera);
@@ -848,11 +895,7 @@ function rotateEarth(event) {
     lastMousePos.x = event.clientX;
     lastMousePos.y = event.clientY;
 }
- 
-document.getElementById("earthButton").addEventListener("click", function(e) {
-    earth.resetRotation();
-})
- 
+
 // Function that handles sizing of the canvas
 function resizeRendererToDisplaySize() {
     canvas = renderer.domElement;
