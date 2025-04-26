@@ -3,7 +3,7 @@
 // East is positive
 // West is negative
 
-let POPUP_DATA = [
+export const POPUP_DATA = [
     {
         lat: 71.7, 
         long: -42.6,

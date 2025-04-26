@@ -2,15 +2,15 @@ const express = require("express");
 const app = express();
 const morgan = require("morgan");
 const path = require("path");
-const port = process.env.PORT || 3000;
 
 app.use(morgan("tiny"));
 
-app.use(express.static(__dirname + "/public"));
-app.use("/build", express.static(path.join(__dirname, "node_modules/three/build")));
-app.use("/jsm", express.static(path.join(__dirname, "node_modules/three/examples/jsm")));
-//app.use("/pp", express.static(path.join(__dirname, "node_modules/postprocessing/build")));
+app.use(express.static(path.join(__dirname, "dist")));
 
-app.listen(port, function() {
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist/index.html"));
+});
+
+app.listen(3000, function() {
     console.log("Listening on port 3000!");
-}) 
+})
